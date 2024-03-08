@@ -15,9 +15,14 @@ def wish(initial_pity, last_five_star, num_limited):
     five_star_rate = 0.006
     fiftyfifty_map = {0: 'Standard', 1: 'Limited'}
     prob_increase = (1 - five_star_rate) / (guarantee - soft_pity_thresh)
+    initial_pity_flag = True
     while limited < num_limited:
         five_star = False
-        count = 0
+        if initial_pity_flag:
+            count = initial_pity
+            initial_pity_flag = False
+        else:
+            count = 0
         while not five_star:
             wish = rng.binomial(1, five_star_rate + prob_increase * max(count - soft_pity_thresh, 0))
             rarity = five_star_map[wish]
@@ -32,7 +37,9 @@ def wish(initial_pity, last_five_star, num_limited):
                 five_star = True
             count += 1
         wishes.append(count)
-    return sum(wishes) - initial_pity
+    # Adjusting for the initial pity
+    wishes[0] = wishes[0] - initial_pity
+    return sum(wishes)
 
 def sim_two_limited(M, count, last_five_star, num_limited):
     results = []
