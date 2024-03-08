@@ -6,7 +6,7 @@ import plotly.express as px
 
 gem_cost = 160
 
-def wish(count, last_five_star, num_limited):
+def wish(initial_pity, last_five_star, num_limited):
     wishes = []
     limited = 0
     soft_pity_thresh = 73
@@ -17,6 +17,7 @@ def wish(count, last_five_star, num_limited):
     prob_increase = (1 - five_star_rate) / (guarantee - soft_pity_thresh)
     while limited < num_limited:
         five_star = False
+        count = 0
         while not five_star:
             wish = rng.binomial(1, five_star_rate + prob_increase * max(count - soft_pity_thresh, 0))
             rarity = five_star_map[wish]
@@ -31,8 +32,7 @@ def wish(count, last_five_star, num_limited):
                 five_star = True
             count += 1
         wishes.append(count)
-        count = 0
-    return sum(wishes)
+    return sum(wishes) - initial_pity
 
 def sim_two_limited(M, count, last_five_star, num_limited):
     results = []
