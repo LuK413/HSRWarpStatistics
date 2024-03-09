@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+from statsmodels.distributions.empirical_distribution import ECDF
 
 
 gem_cost = 160
@@ -41,12 +42,14 @@ def wish(initial_pity, last_five_star, num_limited):
     wishes[0] = wishes[0] - initial_pity
     return sum(wishes)
 
+@st.cache_data
 def sim_two_limited(M, count, last_five_star, num_limited):
     results = []
     for i in range(M):
         results.append(wish(count, last_five_star, num_limited))
     return results
 
+@st.cache_data
 def get_percentiles(results):
     probabilities = np.linspace(0.1, 0.9, 9)
     percentiles = np.quantile(results, probabilities)
@@ -56,6 +59,7 @@ def get_percentiles(results):
     statistics.index.name = 'Probabilities'
     return statistics
 
+@st.cache_data
 def get_descriptions(results):
     def percentile(n):
         def percentile_(x):
@@ -74,37 +78,56 @@ def get_descriptions(results):
 
 st.title('Honkai Star Rail Warp Statistics')
 
-st.markdown("""
-This app predicts the probability of getting limited 5 star characters, given your initial pity state using 10000 simulations. Although we don't know about the true probabilities of soft pity, we make an assumption that it increases linearly, which seems to line up with the info that we have, which is that the expected pulls for a limited 5 star character is 62.5.     
-""")
-st.write('Future Plans: Probability estimation for a range of pulls.')
-
-st.header('Parameters')
-with st.container():
-    num_limited = st.number_input('How many limited characters do you want to pull for?', min_value=1, max_value=5)
-    pity = st.number_input('Current Pity', min_value=0, max_value=89)
-    state = st.toggle('Next 5 star a guaranteed limited?')
-    last_five_star = 'Standard' if state else 'Limited'
-
-start_analysis = st.button('Estimate')
-
-if start_analysis:
-    rng = np.random.default_rng()
-    results = np.array(sim_two_limited(10000, pity, last_five_star, num_limited))
+with st.sidebar:
+    st.header('About')
+    st.markdown("""
+                Gives probability and statistics of getting limited 5 star characters, given 
+                initial pity state using 10000 simulations. Although I don't know about the 
+                true probabilities of soft pity, I make an assumption that it increases linearly, 
+                which holds up with the info we have, which is that expected pulls for a limited
+                5 star character being 62.5.     
+    """)
+    st.write('Future Plans: Probability estimation for a range of pulls and different banner types.')
+    st.header('Parameters')
+    with st.form('Parameters'):
+        num_limited = st.number_input('How many limited characters do you want to pull for?', min_value=1, max_value=6)
+        pity = st.number_input('Current Pity', min_value=0, max_value=89)
+        state = st.toggle('Next 5 star a guaranteed limited?')
+        last_five_star = 'Standard' if state else 'Limited'
+        
+        start_analysis = st.form_submit_button('Estimate')
     
-    st.header('Statistics')
-    
-    st.subheader('Pull Distribution')
-    hist = px.histogram(results, nbins=30)
-    hist.update_traces(hovertemplate ='<br>'.join([
-        'Bin Range: %{x}',
-        'Frequency: %{y}' 
-    ]), selector=dict(type="histogram"))
-    hist.update_layout(showlegend=False, xaxis_title_text='Pulls', yaxis_title_text='Frequency')
-    st.plotly_chart(hist)
+    if start_analysis:
+        st.cache_data.clear()
 
-    st.subheader('Descriptive Statistics')
-    statistics = get_percentiles(results)
-    desc = get_descriptions(results)
-    st.dataframe(statistics, use_container_width=True)
-    st.dataframe(desc, use_container_width=True)
+
+rng = np.random.default_rng()
+results = np.array(sim_two_limited(10000, pity, last_five_star, num_limited))
+
+st.header('Statistics')
+
+st.subheader('Pull Distribution')
+hist = px.histogram(results, nbins=30)
+hist.update_traces(hovertemplate ='<br>'.join([
+    'Bin Range: %{x}',
+    'Frequency: %{y}' 
+]), selector=dict(type="histogram"))
+hist.update_layout(showlegend=False, xaxis_title_text='Pulls', yaxis_title_text='Frequency')
+st.plotly_chart(hist)
+
+st.subheader('Descriptive Statistics')
+statistics = get_percentiles(results)
+desc = get_descriptions(results)
+st.dataframe(statistics, use_container_width=True)
+st.dataframe(desc, use_container_width=True)
+
+st.subheader('Probabilities')
+ecdf= ECDF(results)
+with st.form('Probailities'):
+    col1, col2 = st.columns(2)
+    with col1:
+        low = st.number_input('Lower Bound for Pulls', min_value=0, value=int(np.quantile(results, 0.25)))
+    with col2:
+        high = st.number_input('Upper Bound for Pulls', min_value=0, value=int(np.quantile(results, 0.75)))
+    if st.form_submit_button('Estimate'):
+        st.write(f'Probability: {round(ecdf(high) - ecdf(low), 4)}')
