@@ -76,7 +76,7 @@ def get_descriptions(results):
     return agg.round(2)
 
 
-st.title('Honkai Star Rail Warp Statistics')
+st.title('Honkai Star Rail Warp Calculator')
 
 with st.sidebar:
     st.header('About')
@@ -103,8 +103,6 @@ with st.sidebar:
 
 rng = np.random.default_rng()
 results = np.array(sim_two_limited(10000, pity, last_five_star, num_limited))
-
-st.header('Statistics')
 
 st.subheader('Pull Distribution')
 hist = px.histogram(results, nbins=30)
