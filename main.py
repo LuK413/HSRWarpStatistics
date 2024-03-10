@@ -4,14 +4,8 @@ import pandas as pd
 import plotly.express as px
 from statsmodels.distributions.empirical_distribution import ECDF
 
-# Priority order
-## TODO: accept a parameter with how many pulls user currently has
-## TODO: -  honestly consider removing stellar jades and just focus on pulls
-## TODO: make a new tab for standard banner - need to change the input form too. write the standard banner fn
-## TODO: Add assumptions/methodology tab
 # https://www.reddit.com/r/Genshin_Impact/comments/jo9d9d/the_5_rate_is_not_uniform_06_there_is_a_soft_pity/
 # https://www.prydwen.gg/star-rail/guides/gacha-system/
-jade_cost = 160
 
 def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
     """
@@ -23,11 +17,11 @@ def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
     wishes = []
     limited = 0
     if banner_type == 'Character':
-        soft_pity_thresh = 75
+        soft_pity_thresh = 73
         guarantee = 90
         five_star_rate = 0.006
     else:
-        soft_pity_thresh = 65
+        soft_pity_thresh = 62
         guarantee = 80
         five_star_rate = 0.008
     five_star_map = {0: 'Not 5 Star', 1: '5 Star'}    
@@ -72,9 +66,8 @@ def sim_two_limited(M, count, banner_type, last_five_star, num_limited):
 def get_percentiles(results):
     probabilities = np.linspace(0.1, 0.9, 9)
     percentiles = np.quantile(results, probabilities)
-    jade_percentiles = jade_cost * percentiles
-    statistics = pd.DataFrame(data={'Warps': percentiles, 'Stellar Jades': jade_percentiles})
-    statistics.index = probabilities
+    statistics = pd.DataFrame(data={'Warps': percentiles})
+    statistics.index = list(map(lambda x: x+'%', (probabilities * 100).astype(int).astype(str)))
     statistics.index.name = 'Percentiles'
     return statistics
 
@@ -87,7 +80,6 @@ def get_descriptions(results):
         return percentile_
     df = pd.DataFrame({
         'Warps': results,
-        'Stellar Jades': results * jade_cost
     })
     agg = df.agg([np.mean, np.std, np.min, percentile(0.25), percentile(0.5), percentile(0.75), np.max])
     agg.index = ['Mean', 'Standard Devaiation', 'Min', 'First Quartile', 'Median', 'Third Quartile', 'Max']
@@ -98,14 +90,19 @@ def get_descriptions(results):
 st.title('Honkai Star Rail Warp Calculator')
 
 with st.sidebar:
-    st.header('About')
-    st.markdown("""
-                Gives probability and statistics of getting limited 5 star characters, given 
-                initial pity state using 10000 simulations. Although I don't know about the 
-                true probabilities of soft pity, I make an assumption that it increases linearly, 
-                which roughly holds up with the info we have, which is that expected warps for a 
-                limited 5 star character being 62.5.
-    """)
+    about, methodology = st.tabs(['About', 'Methodology'])
+    with about:
+        st.markdown("""
+                    Gives probability and statistics of getting limited 5 star characters, given 
+                    initial pity state using 10000 simulations. 
+        """)
+    with methodology:
+        st.write('Assumptions (Character/LC):')
+        st.markdown("""
+                    Five Star Rate: 0.6% / 0.8%  
+                    Soft Pity Starts on: 74 / 63  
+                    Soft pity increases linearly.
+        """)
     st.header('Parameters')
     with st.form('Parameters'):
         num_limited = st.number_input('How many limited 5 stars do you want to pull for?', min_value=1, max_value=6)
@@ -135,8 +132,11 @@ st.plotly_chart(hist)
 st.subheader('Descriptive Statistics')
 statistics = get_percentiles(results)
 desc = get_descriptions(results)
-st.dataframe(statistics, use_container_width=True)
-st.dataframe(desc, use_container_width=True)
+col1, col2 = st.columns([0.33, 0.67])
+with col1:
+    st.dataframe(statistics, use_container_width=True)
+with col2:
+    st.dataframe(desc, use_container_width=True)
 
 st.subheader('Probabilities')
 ecdf= ECDF(results)
@@ -147,4 +147,5 @@ with st.form('Probailities'):
     with col2:
         high = st.number_input('Upper Bound for Warps', min_value=0, value=int(np.quantile(results, 0.75)))
     if st.form_submit_button('Estimate'):
-        st.write(f'Probability: {round(ecdf(high) - ecdf(low), 4)}')
+        p = ecdf(high) - ecdf(low)
+        st.write(f'Probability: {p:.2%}')
