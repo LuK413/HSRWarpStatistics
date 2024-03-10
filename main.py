@@ -7,6 +7,8 @@ from statsmodels.distributions.empirical_distribution import ECDF
 # https://www.reddit.com/r/Genshin_Impact/comments/jo9d9d/the_5_rate_is_not_uniform_06_there_is_a_soft_pity/
 # https://www.prydwen.gg/star-rail/guides/gacha-system/
 
+st.set_page_config(page_title='HSR Warp Calculator', page_icon='stellar_jade.jpg')
+
 def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
     """
     initial_pity: Integer from 0 to 89
@@ -59,7 +61,6 @@ def sim_two_limited(M, count, banner_type, last_five_star, num_limited):
     if banner_type == 'Character' or 'Light Cone':
         for i in range(M):
             results.append(limited_wish(count, banner_type, last_five_star, num_limited))
-    # Insert standard banner here
     return results
 
 @st.cache_data
@@ -115,7 +116,6 @@ with st.sidebar:
     
     if start_analysis:
         st.cache_data.clear()
-
 
 rng = np.random.default_rng()
 results = np.array(sim_two_limited(10000, pity, banner_type, last_five_star, num_limited))
