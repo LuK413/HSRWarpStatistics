@@ -4,16 +4,33 @@ import pandas as pd
 import plotly.express as px
 from statsmodels.distributions.empirical_distribution import ECDF
 
+# Priority order
+## TODO: accept a parameter with how many pulls user currently has
+## TODO: -  honestly consider removing stellar jades and just focus on pulls
+## TODO: make a new tab for standard banner - need to change the input form too. write the standard banner fn
+## TODO: Add assumptions/methodology tab
+# https://www.reddit.com/r/Genshin_Impact/comments/jo9d9d/the_5_rate_is_not_uniform_06_there_is_a_soft_pity/
+# https://www.prydwen.gg/star-rail/guides/gacha-system/
+jade_cost = 160
 
-gem_cost = 160
-
-def wish(initial_pity, last_five_star, num_limited):
+def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
+    """
+    initial_pity: Integer from 0 to 89
+    banner_type: Can be only 'Character' or 'Light Cone'
+    last_five_star: 'Limited' or 'Standard' depending on what the last pulled 5 star was
+    num_limited: The targeted number of limited 5 stars to pull
+    """
     wishes = []
     limited = 0
-    soft_pity_thresh = 73
-    guarantee = 90
-    five_star_map = {0: 'Not 5 Star', 1: '5 Star'}
-    five_star_rate = 0.006
+    if banner_type == 'Character':
+        soft_pity_thresh = 75
+        guarantee = 90
+        five_star_rate = 0.006
+    else:
+        soft_pity_thresh = 65
+        guarantee = 80
+        five_star_rate = 0.008
+    five_star_map = {0: 'Not 5 Star', 1: '5 Star'}    
     fiftyfifty_map = {0: 'Standard', 1: 'Limited'}
     prob_increase = (1 - five_star_rate) / (guarantee - soft_pity_thresh)
     initial_pity_flag = True
@@ -29,7 +46,7 @@ def wish(initial_pity, last_five_star, num_limited):
             rarity = five_star_map[wish]
             if rarity == '5 Star':
                 if last_five_star == 'Limited':
-                    wish = rng.binomial(1, 0.5)
+                    wish = rng.binomial(1, 0.5) if banner_type == 'Character' else rng.binomial(1, 0.75)
                 else:
                     wish = 1
                 rarity = fiftyfifty_map[wish]
@@ -43,20 +60,22 @@ def wish(initial_pity, last_five_star, num_limited):
     return sum(wishes)
 
 @st.cache_data
-def sim_two_limited(M, count, last_five_star, num_limited):
+def sim_two_limited(M, count, banner_type, last_five_star, num_limited):
     results = []
-    for i in range(M):
-        results.append(wish(count, last_five_star, num_limited))
+    if banner_type == 'Character' or 'Light Cone':
+        for i in range(M):
+            results.append(limited_wish(count, banner_type, last_five_star, num_limited))
+    # Insert standard banner here
     return results
 
 @st.cache_data
 def get_percentiles(results):
     probabilities = np.linspace(0.1, 0.9, 9)
     percentiles = np.quantile(results, probabilities)
-    gem_percentiles = gem_cost * percentiles
-    statistics = pd.DataFrame(data={'Pull Percentile': percentiles, 'Gem Percentiles': gem_percentiles})
+    jade_percentiles = jade_cost * percentiles
+    statistics = pd.DataFrame(data={'Warps': percentiles, 'Stellar Jades': jade_percentiles})
     statistics.index = probabilities
-    statistics.index.name = 'Probabilities'
+    statistics.index.name = 'Percentiles'
     return statistics
 
 @st.cache_data
@@ -67,8 +86,8 @@ def get_descriptions(results):
         percentile_.__name__ = 'percentile_{:02.0f}'.format(n*100)
         return percentile_
     df = pd.DataFrame({
-        'Pulls': results,
-        'Gems': results * gem_cost
+        'Warps': results,
+        'Stellar Jades': results * jade_cost
     })
     agg = df.agg([np.mean, np.std, np.min, percentile(0.25), percentile(0.5), percentile(0.75), np.max])
     agg.index = ['Mean', 'Standard Devaiation', 'Min', 'First Quartile', 'Median', 'Third Quartile', 'Max']
@@ -84,14 +103,14 @@ with st.sidebar:
                 Gives probability and statistics of getting limited 5 star characters, given 
                 initial pity state using 10000 simulations. Although I don't know about the 
                 true probabilities of soft pity, I make an assumption that it increases linearly, 
-                which holds up with the info we have, which is that expected pulls for a limited
-                5 star character being 62.5.     
+                which roughly holds up with the info we have, which is that expected warps for a 
+                limited 5 star character being 62.5.
     """)
-    st.write('Future Plans: Probability estimation for a range of pulls and different banner types.')
     st.header('Parameters')
     with st.form('Parameters'):
-        num_limited = st.number_input('How many limited characters do you want to pull for?', min_value=1, max_value=6)
+        num_limited = st.number_input('How many limited 5 stars do you want to pull for?', min_value=1, max_value=6)
         pity = st.number_input('Current Pity', min_value=0, max_value=89)
+        banner_type = st.selectbox('Banner Type', ('Character', 'Light Cone'))
         state = st.toggle('Next 5 star a guaranteed limited?')
         last_five_star = 'Standard' if state else 'Limited'
         
@@ -102,15 +121,15 @@ with st.sidebar:
 
 
 rng = np.random.default_rng()
-results = np.array(sim_two_limited(10000, pity, last_five_star, num_limited))
+results = np.array(sim_two_limited(10000, pity, banner_type, last_five_star, num_limited))
 
-st.subheader('Pull Distribution')
-hist = px.histogram(results, nbins=30)
+st.subheader('Warp Distribution')
+hist = px.histogram(results, nbins=40)
 hist.update_traces(hovertemplate ='<br>'.join([
     'Bin Range: %{x}',
     'Frequency: %{y}' 
 ]), selector=dict(type="histogram"))
-hist.update_layout(showlegend=False, xaxis_title_text='Pulls', yaxis_title_text='Frequency')
+hist.update_layout(showlegend=False, xaxis_title_text='Warps', yaxis_title_text='Frequency')
 st.plotly_chart(hist)
 
 st.subheader('Descriptive Statistics')
@@ -124,8 +143,8 @@ ecdf= ECDF(results)
 with st.form('Probailities'):
     col1, col2 = st.columns(2)
     with col1:
-        low = st.number_input('Lower Bound for Pulls', min_value=0, value=int(np.quantile(results, 0.25)))
+        low = st.number_input('Lower Bound for Warps', min_value=0, value=int(np.quantile(results, 0.25)))
     with col2:
-        high = st.number_input('Upper Bound for Pulls', min_value=0, value=int(np.quantile(results, 0.75)))
+        high = st.number_input('Upper Bound for Warps', min_value=0, value=int(np.quantile(results, 0.75)))
     if st.form_submit_button('Estimate'):
         st.write(f'Probability: {round(ecdf(high) - ecdf(low), 4)}')
