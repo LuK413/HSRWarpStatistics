@@ -16,6 +16,8 @@ def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
     last_five_star: 'Limited' or 'Standard' depending on what the last pulled 5 star was
     num_limited: The targeted number of limited 5 stars to pull
     """
+    if num_limited == 0:
+        return 0
     wishes = []
     limited = 0
     if banner_type == 'Character':
@@ -56,7 +58,7 @@ def limited_wish(initial_pity, banner_type, last_five_star, num_limited):
     return sum(wishes)
 
 @st.cache_data
-def sim_two_limited(M, count, banner_type, last_five_star, num_limited):
+def sim_limited(M, count, banner_type, last_five_star, num_limited):
     results = []
     if banner_type == 'Character' or 'Light Cone':
         for i in range(M):
@@ -94,8 +96,8 @@ with st.sidebar:
     about, methodology = st.tabs(['About', 'Methodology'])
     with about:
         st.markdown("""
-                    Gives probability and statistics of getting limited 5 star characters, given 
-                    initial pity state using 10000 simulations. 
+                    Gives probability and statistics of getting limited 5 star characters and light cones,
+                    given initial pity state using 10000 simulations. 
         """)
     with methodology:
         st.write('Assumptions (Character/LC):')
@@ -106,11 +108,14 @@ with st.sidebar:
         """)
     st.header('Parameters')
     with st.form('Parameters'):
-        num_limited = st.number_input('How many limited 5 stars do you want to pull for?', min_value=1, max_value=6)
-        pity = st.number_input('Current Pity', min_value=0, max_value=89)
-        banner_type = st.selectbox('Banner Type', ('Character', 'Light Cone'))
-        state = st.toggle('Next 5 star a guaranteed limited?')
-        last_five_star = 'Standard' if state else 'Limited'
+        num_limited_char = st.number_input('Number of limited 5 star characters', value=1, min_value=0, max_value=6)
+        char_pity = st.number_input('Limited character current pity', min_value=0, max_value=89)
+        char_state = st.toggle('Next 5 star character a guaranteed limited?')
+        last_five_star_char = 'Standard' if char_state else 'Limited'
+        num_limited_lc = st.number_input('Number of limited 5 star light cones', min_value=0, max_value=6)
+        lc_pity = st.number_input('Limited light cone current pity', min_value=0, max_value=89)
+        lc_state = st.toggle('Next 5 star light cone a guaranteed limited?')
+        last_five_star_lc = 'Standard' if char_state else 'Limited'
         
         start_analysis = st.form_submit_button('Estimate')
     
@@ -118,7 +123,9 @@ with st.sidebar:
         st.cache_data.clear()
 
 rng = np.random.default_rng()
-results = np.array(sim_two_limited(10000, pity, banner_type, last_five_star, num_limited))
+char_results = np.array(sim_limited(10000, char_pity, 'Character', last_five_star_char, num_limited_char))
+lc_results = np.array(sim_limited(10000, lc_pity, 'Light Cone', last_five_star_lc, num_limited_lc))
+results = char_results + lc_results
 
 st.subheader('Warp Distribution')
 hist = px.histogram(results, nbins=40)
@@ -143,7 +150,7 @@ ecdf= ECDF(results)
 with st.form('Probailities'):
     col1, col2 = st.columns(2)
     with col1:
-        low = st.number_input('Lower Bound for Warps', min_value=0, value=int(np.quantile(results, 0.25)))
+        low = st.number_input('Lower Bound for Warps', min_value=0, value=0)
     with col2:
         high = st.number_input('Upper Bound for Warps', min_value=0, value=int(np.quantile(results, 0.75)))
     if st.form_submit_button('Estimate'):
